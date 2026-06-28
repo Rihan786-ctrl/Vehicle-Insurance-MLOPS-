@@ -11,7 +11,7 @@ from src.logger import logging
 from src.utils.main_utils import read_yaml_file
 from src.entity.artifact_entity import DataIngestionArtifact, DataValidationArtifact
 from src.entity.config_entity import DataValidationConfig
-from src.constants import SCHEMA_FILE_PATH
+from src.constants import SCHEMA_FILE_PATH, TARGET_COLUMN
 
 
 class DataValidation:
@@ -73,6 +73,14 @@ class DataValidation:
         except Exception as e:
             raise MyException(e, sys) from e
 
+    def validate_target_column(self, dataframe: DataFrame) -> bool:
+        try:
+            null_count = dataframe[TARGET_COLUMN].isna().sum()
+            logging.info(f"Target column '{TARGET_COLUMN}' null count: {null_count}")
+            return null_count == 0
+        except Exception as e:
+            raise MyException(e, sys) from e
+
     @staticmethod
     def read_data(file_path) -> DataFrame:
         try:
@@ -116,11 +124,23 @@ class DataValidation:
             else:
                 logging.info(f"All categorical/int columns present in training dataframe: {status}")
 
+            status = self.validate_target_column(dataframe=train_df)
+            if not status:
+                validation_error_msg += f"Target column '{TARGET_COLUMN}' contains missing values in training dataframe. "
+            else:
+                logging.info(f"No missing target values in training dataframe.")
+
             status = self.is_column_exist(df=test_df)
             if not status:
                 validation_error_msg += f"Columns are missing in test dataframe."
             else:
                 logging.info(f"All categorical/int columns present in testing dataframe: {status}")
+
+            status = self.validate_target_column(dataframe=test_df)
+            if not status:
+                validation_error_msg += f"Target column '{TARGET_COLUMN}' contains missing values in test dataframe."
+            else:
+                logging.info(f"No missing target values in testing dataframe.")
 
             validation_status = len(validation_error_msg) == 0
 

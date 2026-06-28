@@ -4,6 +4,7 @@ import sys
 from pandas import DataFrame
 from sklearn.model_selection import train_test_split
 
+from src.constants import TARGET_COLUMN
 from src.entity.config_entity import DataIngestionConfig
 from src.entity.artifact_entity import DataIngestionArtifact
 from src.exception import MyException
@@ -35,6 +36,16 @@ class DataIngestion:
             dataframe = my_data.export_collection_as_dataframe(collection_name=
                                                                    self.data_ingestion_config.collection_name)
             logging.info(f"Shape of dataframe: {dataframe.shape}")
+
+            if TARGET_COLUMN in dataframe.columns:
+                missing_target_count = dataframe[TARGET_COLUMN].isna().sum()
+                if missing_target_count > 0:
+                    logging.info(
+                        f"Removing {missing_target_count} rows with missing target '{TARGET_COLUMN}'"
+                    )
+                    dataframe = dataframe.dropna(subset=[TARGET_COLUMN])
+                    logging.info(f"Shape after dropping missing target rows: {dataframe.shape}")
+
             feature_store_file_path  = self.data_ingestion_config.feature_store_file_path
             dir_path = os.path.dirname(feature_store_file_path)
             os.makedirs(dir_path,exist_ok=True)
