@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from starlette.responses import HTMLResponse, RedirectResponse
 from uvicorn import run as app_run
 
 from typing import Optional
@@ -34,6 +33,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def _parse_form_value(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if value == "":
+            return None
+        try:
+            return float(value)
+        except ValueError:
+            return value
+    return value
+
+
 class DataForm:
     """
     DataForm class to handle and process incoming form data.
@@ -60,17 +73,17 @@ class DataForm:
         This method is asynchronous to handle form data fetching without blocking.
         """
         form = await self.request.form()
-        self.Gender = form.get("Gender")
-        self.Age = form.get("Age")
-        self.Driving_License = form.get("Driving_License")
-        self.Region_Code = form.get("Region_Code")
-        self.Previously_Insured = form.get("Previously_Insured")
-        self.Annual_Premium = form.get("Annual_Premium")
-        self.Policy_Sales_Channel = form.get("Policy_Sales_Channel")
-        self.Vintage = form.get("Vintage")
-        self.Vehicle_Age_lt_1_Year = form.get("Vehicle_Age_lt_1_Year")
-        self.Vehicle_Age_gt_2_Years = form.get("Vehicle_Age_gt_2_Years")
-        self.Vehicle_Damage_Yes = form.get("Vehicle_Damage_Yes")
+        self.Gender = _parse_form_value(form.get("Gender"))
+        self.Age = _parse_form_value(form.get("Age"))
+        self.Driving_License = _parse_form_value(form.get("Driving_License"))
+        self.Region_Code = _parse_form_value(form.get("Region_Code"))
+        self.Previously_Insured = _parse_form_value(form.get("Previously_Insured"))
+        self.Annual_Premium = _parse_form_value(form.get("Annual_Premium"))
+        self.Policy_Sales_Channel = _parse_form_value(form.get("Policy_Sales_Channel"))
+        self.Vintage = _parse_form_value(form.get("Vintage"))
+        self.Vehicle_Age_lt_1_Year = _parse_form_value(form.get("Vehicle_Age_lt_1_Year"))
+        self.Vehicle_Age_gt_2_Years = _parse_form_value(form.get("Vehicle_Age_gt_2_Years"))
+        self.Vehicle_Damage_Yes = _parse_form_value(form.get("Vehicle_Damage_Yes"))
 
 # Route to render the main page with the form
 @app.get("/", tags=["authentication"])

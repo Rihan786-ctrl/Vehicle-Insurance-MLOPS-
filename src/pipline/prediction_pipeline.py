@@ -1,9 +1,13 @@
 import sys
+from pathlib import Path
+
+from pandas import DataFrame
+
 from src.entity.config_entity import VehiclePredictorConfig
 from src.entity.s3_estimator import Proj1Estimator
 from src.exception import MyException
 from src.logger import logging
-from pandas import DataFrame
+from src.utils.main_utils import load_object
 
 
 class VehicleData:
@@ -91,6 +95,23 @@ class VehicleDataClassifier:
         except Exception as e:
             raise MyException(e, sys)
 
+    def _load_local_model(self):
+        """Load the latest local model artifact when S3 is unavailable."""
+        artifact_dir = Path("artifact")
+        if not artifact_dir.exists():
+            raise FileNotFoundError("No local artifact directory found.")
+
+        model_files = sorted(
+            artifact_dir.rglob("model.pkl"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+
+        if not model_files:
+            raise FileNotFoundError("No local model artifact found in artifact/.")
+
+        return load_object(str(model_files[0]))
+
     def predict(self, dataframe) -> str:
         """
         This is the method of VehicleDataClassifier
@@ -98,13 +119,16 @@ class VehicleDataClassifier:
         """
         try:
             logging.info("Entered predict method of VehicleDataClassifier class")
-            model = Proj1Estimator(
-                bucket_name=self.prediction_pipeline_config.model_bucket_name,
-                model_path=self.prediction_pipeline_config.model_file_path,
-            )
-            result =  model.predict(dataframe)
-            
-            return result
+            try:
+                model = Proj1Estimator(
+                    bucket_name=self.prediction_pipeline_config.model_bucket_name,
+                    model_path=self.prediction_pipeline_config.model_file_path,
+                )
+                return model.predict(dataframe)
+            except Exception as s3_error:
+                logging.warning("S3 model loading failed, falling back to local artifact. Error: %s", s3_error)
+                local_model = self._load_local_model()
+                return local_model.predict(dataframe=dataframe)
         
         except Exception as e:
             raise MyException(e, sys)
