@@ -1,6 +1,6 @@
 from src.entity.config_entity import ModelEvaluationConfig
 from src.entity.artifact_entity import ModelTrainerArtifact, DataIngestionArtifact, ModelEvaluationArtifact
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, precision_score, recall_score
 from src.exception import MyException
 from src.constants import TARGET_COLUMN
 from src.logger import logging
@@ -55,24 +55,6 @@ class ModelEvaluation:
         logging.info("Mapping 'Gender' column to binary values")
         df['Gender'] = df['Gender'].map({'Female': 0, 'Male': 1}).astype(int)
         return df
-
-    def _create_dummy_columns(self, df):
-        """Create dummy variables for categorical features."""
-        logging.info("Creating dummy variables for categorical features")
-        df = pd.get_dummies(df, drop_first=True)
-        return df
-
-    def _rename_columns(self, df):
-        """Rename specific columns and ensure integer types for dummy columns."""
-        logging.info("Renaming specific columns and casting to int")
-        df = df.rename(columns={
-            "Vehicle_Age_< 1 Year": "Vehicle_Age_lt_1_Year",
-            "Vehicle_Age_> 2 Years": "Vehicle_Age_gt_2_Years"
-        })
-        for col in ["Vehicle_Age_lt_1_Year", "Vehicle_Age_gt_2_Years", "Vehicle_Damage_Yes"]:
-            if col in df.columns:
-                df[col] = df[col].astype('int')
-        return df
     
     def _drop_id_column(self, df):
         """Drop the 'id' column if it exists."""
@@ -96,10 +78,17 @@ class ModelEvaluation:
 
             logging.info("Test data loaded and now transforming it for prediction...")
 
+            # Apply only basic transformations before loading preprocessing object
             x = self._map_gender_column(x)
             x = self._drop_id_column(x)
-            x = self._create_dummy_columns(x)
-            x = self._rename_columns(x)
+            
+            # Load and apply the saved preprocessing object for consistent feature engineering
+            logging.info("Loading saved preprocessing object for consistent transformation...")
+            preprocessing_obj = load_object(
+                file_path=self.model_trainer_artifact.data_transformation_artifact.transformed_object_file_path
+            )
+            logging.info("Applying preprocessing pipeline...")
+            x = preprocessing_obj.transform(x)
 
             trained_model = load_object(file_path=self.model_trainer_artifact.trained_model_file_path)
             logging.info("Trained model loaded/exists.")

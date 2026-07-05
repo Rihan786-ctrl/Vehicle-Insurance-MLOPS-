@@ -33,8 +33,15 @@ drop_columns: _id
 # for data transformation
 num_features:
   - Age
+  - Driving_License
+  - Region_Code
+  - Previously_Insured
   - Vintage
-
 
 mm_columns:
   - Annual_Premium
+
+categorical_features:
+  - Gender
+  - Vehicle_Age
+  - Vehicle_Damage

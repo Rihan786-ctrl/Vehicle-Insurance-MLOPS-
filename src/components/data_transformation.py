@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from imblearn.combine import SMOTEENN
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 
 from src.constants import TARGET_COLUMN, SCHEMA_FILE_PATH, CURRENT_YEAR
@@ -35,9 +35,8 @@ class DataTransformation:
 
     def get_data_transformer_object(self) -> Pipeline:
         """
-        Creates and returns a data transformer object for the data, 
-        including gender mapping, dummy variable creation, column renaming,
-        feature scaling, and type adjustments.
+        Creates and returns a data transformer object with proper feature engineering.
+        Uses OneHotEncoder for categorical features to ensure consistency between train and test sets.
         """
         logging.info("Entered get_data_transformer_object method of DataTransformation class")
 
@@ -45,25 +44,28 @@ class DataTransformation:
             # Initialize transformers
             numeric_transformer = StandardScaler()
             min_max_scaler = MinMaxScaler()
-            logging.info("Transformers Initialized: StandardScaler-MinMaxScaler")
+            categorical_transformer = OneHotEncoder(drop='first', handle_unknown='ignore', sparse_output=False)
+            logging.info("Transformers Initialized: StandardScaler, MinMaxScaler, OneHotEncoder")
 
             # Load schema configurations
             num_features = self._schema_config['num_features']
             mm_columns = self._schema_config['mm_columns']
-            logging.info("Cols loaded from schema.")
+            categorical_features = self._schema_config['categorical_features']
+            logging.info(f"Features loaded from schema - Numeric: {num_features}, MinMax: {mm_columns}, Categorical: {categorical_features}")
 
-            # Creating preprocessor pipeline
+            # Creating preprocessor pipeline with categorical encoding
             preprocessor = ColumnTransformer(
                 transformers=[
                     ("StandardScaler", numeric_transformer, num_features),
-                    ("MinMaxScaler", min_max_scaler, mm_columns)
+                    ("MinMaxScaler", min_max_scaler, mm_columns),
+                    ("OneHotEncoder", categorical_transformer, categorical_features)
                 ],
                 remainder='passthrough'  # Leaves other columns as they are
             )
 
             # Wrapping everything in a single pipeline
             final_pipeline = Pipeline(steps=[("Preprocessor", preprocessor)])
-            logging.info("Final Pipeline Ready!!")
+            logging.info("Final Pipeline Ready with OneHotEncoder for categorical features!!")
             logging.info("Exited get_data_transformer_object method of DataTransformation class")
             return final_pipeline
 
@@ -77,24 +79,6 @@ class DataTransformation:
         df['Gender'] = df['Gender'].map({'Female': 0, 'Male': 1}).astype(int)
         return df
 
-    def _create_dummy_columns(self, df):
-        """Create dummy variables for categorical features."""
-        logging.info("Creating dummy variables for categorical features")
-        df = pd.get_dummies(df, drop_first=True)
-        return df
-
-    def _rename_columns(self, df):
-        """Rename specific columns and ensure integer types for dummy columns."""
-        logging.info("Renaming specific columns and casting to int")
-        df = df.rename(columns={
-            "Vehicle_Age_< 1 Year": "Vehicle_Age_lt_1_Year",
-            "Vehicle_Age_> 2 Years": "Vehicle_Age_gt_2_Years"
-        })
-        for col in ["Vehicle_Age_lt_1_Year", "Vehicle_Age_gt_2_Years", "Vehicle_Damage_Yes"]:
-            if col in df.columns:
-                df[col] = df[col].astype('int')
-        return df
-
     def _drop_id_column(self, df):
         """Drop the 'id' column if it exists."""
         logging.info("Dropping 'id' column")
@@ -106,6 +90,7 @@ class DataTransformation:
     def initiate_data_transformation(self) -> DataTransformationArtifact:
         """
         Initiates the data transformation component for the pipeline.
+        Uses stateful transformers to ensure consistent feature engineering between train and test sets.
         """
         try:
             logging.info("Data Transformation Started !!!")
@@ -124,19 +109,16 @@ class DataTransformation:
             target_feature_test_df = test_df[TARGET_COLUMN]
             logging.info("Input and Target cols defined for both train and test df.")
 
-            # Apply custom transformations in specified sequence
+            # Apply only simple transformations before the pipeline
+            # Gender mapping and ID column drop must be done before preprocessing
             input_feature_train_df = self._map_gender_column(input_feature_train_df)
             input_feature_train_df = self._drop_id_column(input_feature_train_df)
-            input_feature_train_df = self._create_dummy_columns(input_feature_train_df)
-            input_feature_train_df = self._rename_columns(input_feature_train_df)
 
             input_feature_test_df = self._map_gender_column(input_feature_test_df)
             input_feature_test_df = self._drop_id_column(input_feature_test_df)
-            input_feature_test_df = self._create_dummy_columns(input_feature_test_df)
-            input_feature_test_df = self._rename_columns(input_feature_test_df)
-            logging.info("Custom transformations applied to train and test data")
+            logging.info("Basic transformations (Gender mapping, ID drop) applied to train and test data")
 
-            logging.info("Starting data transformation")
+            logging.info("Starting data transformation with stateful OneHotEncoder")
             preprocessor = self.get_data_transformer_object()
             logging.info("Got the preprocessor object")
 
@@ -151,7 +133,7 @@ class DataTransformation:
             input_feature_train_arr = preprocessor.fit_transform(input_feature_train_df)
             logging.info("Initializing transformation for Testing-data")
             input_feature_test_arr = preprocessor.transform(input_feature_test_df)
-            logging.info("Transformation done end to end to train-test df.")
+            logging.info("Transformation done end to end to train-test df - features are now consistent.")
 
             logging.info("Applying SMOTEENN for handling imbalanced dataset.")
             smt = SMOTEENN(sampling_strategy="minority")
