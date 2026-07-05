@@ -122,9 +122,16 @@ class ModelTrainer:
             
             logging.info(f"Model accepted with training F1 score: {train_f1:.4f}")
 
-            # Save the final model object that includes both preprocessing and the trained model
+            # Save the final model object that includes preprocessing, trained model, AND the optimal threshold
             logging.info("Saving new model as performace is better than previous one.")
-            my_model = MyModel(preprocessing_object=preprocessing_obj, trained_model_object=trained_model)
+            
+            # FIXED LINE: Added threshold=self.optimal_threshold parameter
+            my_model = MyModel(
+                preprocessing_object=preprocessing_obj, 
+                trained_model_object=trained_model, 
+                threshold=self.optimal_threshold
+            )
+            
             save_object(self.model_trainer_config.trained_model_file_path, my_model)
             logging.info("Saved final model object that includes both preprocessing and the trained model")
 

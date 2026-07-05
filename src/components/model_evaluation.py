@@ -78,27 +78,24 @@ class ModelEvaluation:
 
             logging.info("Test data loaded and now transforming it for prediction...")
 
-            # Apply only basic transformations before loading preprocessing object
-            x = self._map_gender_column(x)
+            # Drop the ID column if it exists, matching the training schema requirement
             x = self._drop_id_column(x)
-            
-            # Load and apply the saved preprocessing object for consistent feature engineering
-            logging.info("Loading saved preprocessing object for consistent transformation...")
-            preprocessing_obj = load_object(
-                file_path=self.model_trainer_artifact.data_transformation_artifact.transformed_object_file_path
-            )
-            logging.info("Applying preprocessing pipeline...")
-            x = preprocessing_obj.transform(x)
 
+            # Load the newly trained local model object
             trained_model = load_object(file_path=self.model_trainer_artifact.trained_model_file_path)
             logging.info("Trained model loaded/exists.")
-            trained_model_f1_score = self.model_trainer_artifact.metric_artifact.f1_score
-            logging.info(f"F1_Score for this model: {trained_model_f1_score}")
+            
+            # Use the local model to get predictions on the test dataset
+            logging.info("Computing predictions for the newly trained model...")
+            y_hat_trained_model = trained_model.predict(x)
+            trained_model_f1_score = f1_score(y, y_hat_trained_model)
+            logging.info(f"F1_Score for this newly trained model: {trained_model_f1_score}")
 
-            best_model_f1_score=None
+            best_model_f1_score = None
             best_model = self.get_best_model()
             if best_model is not None:
                 logging.info(f"Computing F1_Score for production model..")
+                # Both models now take the identical clean structure format
                 y_hat_best_model = best_model.predict(x)
                 best_model_f1_score = f1_score(y, y_hat_best_model)
                 logging.info(f"F1_Score-Production Model: {best_model_f1_score}, F1_Score-New Trained Model: {trained_model_f1_score}")
@@ -114,7 +111,6 @@ class ModelEvaluation:
 
         except Exception as e:
             raise MyException(e, sys)
-
     def initiate_model_evaluation(self) -> ModelEvaluationArtifact:
         """
         Method Name :   initiate_model_evaluation
