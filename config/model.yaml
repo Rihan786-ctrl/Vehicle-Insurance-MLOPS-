@@ -1,0 +1,6 @@
+# Inside your model parameter configuration file:
+min_samples_split: 12     # Forces trees to generalize leaves instead of growing deep for single rows
+min_samples_leaf: 6       # Ensures every terminal node contains a robust group of samples
+max_depth: 14             # Limits absolute vertical depth to block overfitting splits
+n_estimators: 150         # Maintains a healthy forest size
+criterion: "entropy"      # Excellent entropy calculation for imbalanced information gain

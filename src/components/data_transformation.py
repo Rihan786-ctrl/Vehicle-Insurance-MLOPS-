@@ -13,6 +13,7 @@ from src.exception import MyException
 from src.logger import logging
 from src.utils.main_utils import save_object, save_numpy_array_data, read_yaml_file
 
+from sklearn.preprocessing import StandardScaler, RobustScaler, OneHotEncoder # 
 
 class DataTransformation:
     def __init__(self, data_ingestion_artifact: DataIngestionArtifact,
@@ -33,39 +34,37 @@ class DataTransformation:
         except Exception as e:
             raise MyException(e, sys)
 
+
+
     def get_data_transformer_object(self) -> Pipeline:
-        """
-        Creates and returns a data transformer object with proper feature engineering.
-        Uses OneHotEncoder for categorical features to ensure consistency between train and test sets.
-        """
         logging.info("Entered get_data_transformer_object method of DataTransformation class")
 
         try:
             # Initialize transformers
             numeric_transformer = StandardScaler()
-            min_max_scaler = MinMaxScaler()
-            categorical_transformer = OneHotEncoder(drop='first', handle_unknown='ignore', sparse_output=False)
-            logging.info("Transformers Initialized: StandardScaler, MinMaxScaler, OneHotEncoder")
+            robust_scaler = RobustScaler() # <--- Replaced MinMaxScaler with RobustScaler
+            oh_encoder = OneHotEncoder(handle_unknown='ignore')
+            logging.info("Transformers Initialized: StandardScaler - RobustScaler - OneHotEncoder")
 
             # Load schema configurations
             num_features = self._schema_config['num_features']
-            mm_columns = self._schema_config['mm_columns']
+            mm_columns = self._schema_config['mm_columns'] # Your 'Annual_Premium' column
             categorical_features = self._schema_config['categorical_features']
-            logging.info(f"Features loaded from schema - Numeric: {num_features}, MinMax: {mm_columns}, Categorical: {categorical_features}")
+            logging.info("Cols loaded from schema.")
 
-            # Creating preprocessor pipeline with categorical encoding
+            # Creating preprocessor pipeline
             preprocessor = ColumnTransformer(
                 transformers=[
                     ("StandardScaler", numeric_transformer, num_features),
-                    ("MinMaxScaler", min_max_scaler, mm_columns),
-                    ("OneHotEncoder", categorical_transformer, categorical_features)
+                    ("RobustScaler", robust_scaler, mm_columns), # <--- Swapped to RobustScaler
+                    ("OneHotEncoder", oh_encoder, categorical_features)
                 ],
-                remainder='passthrough'  # Leaves other columns as they are
+                remainder='passthrough'
             )
 
             # Wrapping everything in a single pipeline
             final_pipeline = Pipeline(steps=[("Preprocessor", preprocessor)])
-            logging.info("Final Pipeline Ready with OneHotEncoder for categorical features!!")
+            logging.info("Final Pipeline Ready!!")
             logging.info("Exited get_data_transformer_object method of DataTransformation class")
             return final_pipeline
 
