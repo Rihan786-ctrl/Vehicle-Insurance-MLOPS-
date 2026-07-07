@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-
+import pandas as pd
 from pandas import DataFrame
 
 from src.entity.config_entity import VehiclePredictorConfig
@@ -8,7 +8,6 @@ from src.entity.s3_estimator import Proj1Estimator
 from src.exception import MyException
 from src.logger import logging
 from src.utils.main_utils import load_object
-
 
 class VehicleData:
     def __init__(self,
@@ -25,8 +24,7 @@ class VehicleData:
                 Vehicle_Damage_Yes
                 ):
         """
-        Vehicle Data constructor
-        Input: all features of the trained model for prediction
+        Vehicle Data constructor matching the parameters passed from app.py.
         """
         try:
             self.Gender = Gender
@@ -44,52 +42,59 @@ class VehicleData:
         except Exception as e:
             raise MyException(e, sys) from e
 
-    def get_vehicle_input_data_frame(self)-> DataFrame:
+    def get_vehicle_input_data_frame(self) -> DataFrame:
         """
-        This function returns a DataFrame from USvisaData class input
+        This function returns a DataFrame with the proper raw schema matching training data.
         """
         try:
-            
             vehicle_input_dict = self.get_vehicle_data_as_dict()
             return DataFrame(vehicle_input_dict)
-        
         except Exception as e:
             raise MyException(e, sys) from e
 
-
     def get_vehicle_data_as_dict(self):
         """
-        This function returns a dictionary from VehicleData class input
+        Converts the raw numeric UI form fields back into categorical string representations
+        expected by the model pipeline's stateful OneHotEncoder / Preprocessor.
         """
-        logging.info("Entered get_usvisa_data_as_dict method as VehicleData class")
+        logging.info("Entered get_vehicle_data_as_dict method of VehicleData class")
 
         try:
+            # 1. Reverse engineer the numerical inputs to raw categorical text labels
+            gender_raw = "Male" if int(float(self.Gender)) == 1 else "Female"
+
+            if int(float(self.Vehicle_Age_lt_1_Year)) == 1:
+                vehicle_age_raw = "< 1 Year"
+            elif int(float(self.Vehicle_Age_gt_2_Years)) == 1:
+                vehicle_age_raw = "> 2 Years"
+            else:
+                vehicle_age_raw = "1-2 Year"
+
+            vehicle_damage_raw = "Yes" if int(float(self.Vehicle_Damage_Yes)) == 1 else "No"
+
+            # 2. Build the exact payload schema structure matching schema.yaml requirements
             input_data = {
-                "Gender": [self.Gender],
-                "Age": [self.Age],
-                "Driving_License": [self.Driving_License],
-                "Region_Code": [self.Region_Code],
-                "Previously_Insured": [self.Previously_Insured],
-                "Annual_Premium": [self.Annual_Premium],
-                "Policy_Sales_Channel": [self.Policy_Sales_Channel],
-                "Vintage": [self.Vintage],
-                "Vehicle_Age_lt_1_Year": [self.Vehicle_Age_lt_1_Year],
-                "Vehicle_Age_gt_2_Years": [self.Vehicle_Age_gt_2_Years],
-                "Vehicle_Damage_Yes": [self.Vehicle_Damage_Yes]
+                "Gender": [gender_raw],
+                "Age": [int(self.Age)],
+                "Driving_License": [int(self.Driving_License)],
+                "Region_Code": [float(self.Region_Code)],
+                "Previously_Insured": [int(self.Previously_Insured)],
+                "Vehicle_Age": [vehicle_age_raw],       # Raw original categorical column name
+                "Vehicle_Damage": [vehicle_damage_raw],   # Raw original categorical column name
+                "Annual_Premium": [float(self.Annual_Premium)],
+                "Policy_Sales_Channel": [float(self.Policy_Sales_Channel)],
+                "Vintage": [int(self.Vintage)]
             }
 
-            logging.info("Created vehicle data dict")
-            logging.info("Exited get_vehicle_data_as_dict method as VehicleData class")
+            logging.info(f"Created vehicle raw feature data dict: {input_data}")
             return input_data
 
         except Exception as e:
             raise MyException(e, sys) from e
 
+
 class VehicleDataClassifier:
-    def __init__(self,prediction_pipeline_config: VehiclePredictorConfig = VehiclePredictorConfig(),) -> None:
-        """
-        :param prediction_pipeline_config: Configuration for prediction the value
-        """
+    def __init__(self, prediction_pipeline_config: VehiclePredictorConfig = VehiclePredictorConfig()) -> None:
         try:
             self.prediction_pipeline_config = prediction_pipeline_config
         except Exception as e:
@@ -112,10 +117,9 @@ class VehicleDataClassifier:
 
         return load_object(str(model_files[0]))
 
-    def predict(self, dataframe) -> str:
+    def predict(self, dataframe: pd.DataFrame):
         """
-        This is the method of VehicleDataClassifier
-        Returns: Prediction in string format
+        Predicts the output from the given dataframe.
         """
         try:
             logging.info("Entered predict method of VehicleDataClassifier class")
